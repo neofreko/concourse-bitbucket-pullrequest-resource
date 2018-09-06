@@ -50,6 +50,8 @@ prq_date=$(jq -r '.version.date // ""' < "$payload")
 configure_git_ssl_verification "$skip_ssl_verification"
 configure_git_global "${git_config_payload}"
 
+short_ref_format=$(jq -r '(.params.short_ref_format // "%s")' < $payload)
+
 if [ -z "$uri" ]; then
   log "invalid payload (missing uri):" "$(cat "$payload")"
   exit 1
@@ -158,6 +160,29 @@ git config --add pullrequest.target $target_commit
 git config --add pullrequest.merge $ref
 git config --add pullrequest.date "$prq_date"
 git config --add pullrequest.branch "$branch"
+
+# git metadata, copied from concourse/git-resource
+# Store committer email in .git/committer. Can be used to send email to last committer on failed build
+# Using https://github.com/mdomke/concourse-email-resource for example
+git --no-pager log -1 --pretty=format:"%ae" > .git/committer
+
+# Store git-resource returned version ref .git/ref. Useful to know concourse
+# pulled ref in following tasks and resources.
+echo "${ref}" > .git/ref
+
+# Store short ref with templating. Useful to build Docker images with
+# a custom tag
+echo "${return_ref}" | cut -c1-7 | awk "{ printf \"${short_ref_format}\", \$1 }" > .git/short_ref
+
+# Store commit message in .git/commit_message. Can be used to inform about
+# the content of a successfull build.
+# Using https://github.com/cloudfoundry-community/slack-notification-resource
+# for example
+git log -1 --format=format:%B > .git/commit_message
+
+# PR metadata 
+# can be useful to mark build or semver
+echo "$prq_id" > .bitbucket/pr_id
 
 jq -n "{
   version: $(jq '.version' < "$payload"),

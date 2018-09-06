@@ -106,9 +106,23 @@ Note: the name of the branch from which the pull request has been created is sto
 
 * `disable_git_lfs`: *Optional.* If `true`, will not fetch Git LFS files.
 
+* `short_ref_format`: Optional. When populating `.git/short_ref` use this printf format. Defaults to `%s`.
+
+
 #### GPG signature verification
 
 If `commit_verification_keys` or `commit_verification_key_ids` is specified in the source configuration, it will additionally verify that the resulting commit has been GPG signed by one of the specified keys. It will error if this is not the case.
+
+#### Additional files populated
+* `.git/committer`: For committer notification on failed builds. This special file `.git/committer` which is populated with the email address of the author of the last commit. This can be used together with an email resource like `mdomke/concourse-email-resource` to notify the committer in an on_failure step.
+
+* `.git/ref`: Version reference detected and checked out.
+
+* `.git/short_ref`: Short (first seven characters) of the `.git/ref`. Can be templated with short_ref_format parameter.
+
+* `.git/commit_message`: Last commit message
+
+
 
 ### `out`: Update the status of a pull request
 
