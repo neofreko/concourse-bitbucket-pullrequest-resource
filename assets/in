@@ -182,7 +182,9 @@ git log -1 --format=format:%B > .git/commit_message
 
 # PR metadata 
 # can be useful to mark build or semver
+mkdir .bitbucket
 echo "$prq_id" > .bitbucket/pr_id
+jq '.description' < "$payload" > .bitbucket/description
 
 jq -n "{
   version: $(jq '.version' < "$payload"),
