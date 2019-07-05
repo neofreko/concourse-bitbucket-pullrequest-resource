@@ -184,7 +184,7 @@ git log -1 --format=format:%B > .git/commit_message
 # can be useful to mark build or semver
 mkdir .bitbucket
 echo "$prq_id" > .bitbucket/pr_id
-jq '.description' < "$payload" > .bitbucket/description
+echo "$prq" | jq -r '.description' > .bitbucket/description
 
 jq -n "{
   version: $(jq '.version' < "$payload"),

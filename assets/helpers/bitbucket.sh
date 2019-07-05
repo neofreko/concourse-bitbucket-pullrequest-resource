@@ -41,9 +41,15 @@ bitbucket_request() {
   local extra_options=""
   if [ -n "$data" ]; then
     method=${method:-POST}
-    jq '.' <<< "$data" > "$request_data"
+    log "debug: $data"
+    # escaping newlines
+    awk '{printf "%s\\n", $0}' <<< "$data" > sed-input.txt
+    cat sed-input.txt | sed 's/\\n$//' | jq '.' > "$request_data"
+    # jq '.' <<< "$data" > "$request_data"
     extra_options="-H \"Content-Type: application/json\" -d @\"$request_data\""
   fi
+
+  log "data is valid"
 
   if [ -n "$method" ]; then
     extra_options+=" -X $method"
@@ -59,10 +65,15 @@ bitbucket_request() {
     exit 1
   fi
 
+  log "curl was successful"
+
   if ! jq -c '.' < "$request_result" > /dev/null 2> /dev/null; then
     log "Bitbucket request $request_url failed (invalid JSON): $(cat "$request_result")"
     exit 1
   fi
+
+  log "response was valid"
+  log $request_result
 
   if [ "$(jq -r '.isLastPage' < "$request_result")" == "false" ]; then
     local nextPage=$(jq -r '.nextPageStart' < "$request_result")
