@@ -129,7 +129,7 @@ bitbucket_pullrequest_trigger_refs() {
   # $5: netrc file (default: $HOME/.netrc)
   # $6: skip ssl verification
   log "Retrieving pull request merge status #$4 for $2/$3"
-  bitbucket_request "$1" "projects/$2/repos/$3/pull-requests/$4/changes?limit=1" "" "" "" "$6" "$5"
+  bitbucket_request "$1" "projects/$2/repos/$3/pull-requests/$4/changes" "" "" "" "$6" "$5"
 }
 
 bitbucket_pullrequest_overview_comments() {
