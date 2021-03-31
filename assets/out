@@ -124,8 +124,8 @@ case "$status" in
 esac
 
 # set build status on commit in bitbucket, this has to be the latest source commit or the pull request won't pick it up
-source_commit=$(git rev-list --parents -1 $merge_commit | awk '{print $3}')
-target_commit=$(git rev-list --parents -1 $merge_commit | awk '{print $2}')
+source_commit=$(git rev-list --parents -1 $merge_commit | awk '{print $2}')
+target_commit=$(git rev-list --parents -1 $merge_commit | awk '{print $1}')
 
 # determine repository name for calling REST api
 repo_name=$(basename "$uri" | sed "s/.git$//")
