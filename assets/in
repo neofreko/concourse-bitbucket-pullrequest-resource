@@ -52,6 +52,15 @@ configure_git_global "${git_config_payload}"
 
 short_ref_format=$(jq -r '(.params.short_ref_format // "%s")' < $payload)
 
+# parse uri and retrieve host
+uri_parser "$uri"
+repo_host="${uri_schema}://${uri_address}"
+repo_host=${repo_host}$(getBasePathOfBitbucket)
+
+# determine repository name for calling REST api
+repo_name=$(basename "$uri" | sed "s/.git$//")
+repo_project=$(basename $(dirname "$uri"))
+
 if [ -z "$uri" ]; then
   log "invalid payload (missing uri):" "$(cat "$payload")"
   exit 1
@@ -70,7 +79,7 @@ fi
 branch="pull-requests/${prq_id}/from"
 
 # trigger required refs
-$(bitbucket_pullrequest_trigger_refs "$repo_host" "$repo_project" "$repo_name" "$prq_id" "" "$skip_ssl_verification")
+changes=$(bitbucket_pullrequest_trigger_refs "$repo_host" "$repo_project" "$repo_name" "$prq_id" "" "$skip_ssl_verification")
 
 log "Cloning $uri in $destination"
 git clone $depthflag "$uri" "$destination"
@@ -80,6 +89,9 @@ git fetch $depthflag origin "+refs/${branch}:refs/remotes/origin/${branch}"
 git checkout -B $branch origin/$branch
 
 ref=$(git rev-parse HEAD)
+
+# debug
+log "$(git log -n 10 --pretty=short)"
 
 invalid_key() {
   echo "Invalid GPG key in: ${commit_verification_keys}"
@@ -123,9 +135,12 @@ if [ "$disable_git_lfs" != "true" ]; then
   git submodule foreach "git lfs fetch && git lfs checkout"
 fi
 
+# debug
+log "$(git rev-list --parents -1 $ref)"
+
 # calculate source and target commit
-source_commit=$(git rev-list --parents -1 $ref | awk '{print $3}')
-target_commit=$(git rev-list --parents -1 $ref | awk '{print $2}')
+source_commit=$(git rev-list --parents -1 $ref | awk '{print $2}')
+target_commit=$(git rev-list --parents -1 $ref | awk '{print $1}')
 
 if [ -z "$source_commit" ]; then
   log "Unable to determine source commit from merge commit $ref. Please verify depth configuration."
@@ -136,15 +151,6 @@ if [ -z "$target_commit" ]; then
   log "Unable to determine target commit from merge commit $ref. Please verify depth configuration."
   exit 1
 fi
-
-# parse uri and retrieve host
-uri_parser "$uri"
-repo_host="${uri_schema}://${uri_address}"
-repo_host=${repo_host}$(getBasePathOfBitbucket)
-
-# determine repository name for calling REST api
-repo_name=$(basename "$uri" | sed "s/.git$//")
-repo_project=$(basename $(dirname "$uri"))
 
 # verify target branch of prq
 prq=$(bitbucket_pullrequest "$repo_host" "$repo_project" "$repo_name" "$prq_id" "" "$skip_ssl_verification")
