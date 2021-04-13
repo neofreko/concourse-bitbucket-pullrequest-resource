@@ -51,17 +51,21 @@ if [ -z "$uri" ]; then
   exit 1
 fi
 
+# no longer possible due to missing merge ref
 # if option 'rebuild_when_target_changed' is enabled take merge branch since commit will always change for changes on target branch
-prq_branch="from"
-if [ "$rebuild_when_target_changed" == "true" ]; then
-  prq_branch="merge"
-fi
+# prq_branch="from"
+# if [ "$rebuild_when_target_changed" == "true" ]; then
+#  prq_branch="merge"
+# fi
+
+PRS=$(bitbucket_pullrequests "$repo_host" "$repo_project" "$repo_name" "" "" "$skip_ssl_verification")
+PULL_REQUESTS=$(echo "${PRS}" | jq -r '.values[] | .id ' | xargs -L1 -I'{}' echo "refs/pull-requests/{}/from")
 
 # collect all pull requests from uri
-REMOTES=$(git ls-remote "$uri")
-set +e
-PULL_REQUESTS=$(echo "$REMOTES" | grep -E "/pull\\-requests/[0-9]+/${prq_branch}")
-set -e
+# REMOTES=$(git ls-remote "$uri")
+# set +e
+# PULL_REQUESTS=$(echo "$REMOTES" | grep -E "/pull\\-requests/[0-9]+/${prq_branch}")
+# set -e
 
 
 versions="[]"
