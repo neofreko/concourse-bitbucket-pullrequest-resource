@@ -42,6 +42,7 @@ sleep_between_fetches=$(jq -r '.source.sleep_between_fetches // "0"' < "$payload
 rebuild_when_target_changed=$(jq -r '.source.rebuild_when_target_changed // "false"' < "$payload")
 rebuild_phrase=$(jq -r '.source.rebuild_phrase // "test this please"' < "$payload")
 CURRENT_VERSION_DATE=$(jq -r '.version.date // "0"' < "$payload")
+DEBUG_CHECK_PHASE=$(jq -r '.source.debug_check_phase // "false"' < "$payload")
 
 configure_git_ssl_verification "$skip_ssl_verification"
 configure_git_global "${git_config_payload}"
@@ -58,8 +59,22 @@ fi
 #  prq_branch="merge"
 # fi
 
+# determine repository name for calling REST api
+repo_name=$(basename "$uri" | sed "s/.git$//")
+repo_project=$(basename $(dirname "$uri"))
+
+# parse uri and retrieve host
+uri_parser "$uri"
+repo_host="${uri_schema}://${uri_address}"
+
+repo_host=${repo_host}$(getBasePathOfBitbucket)
+
 PRS=$(bitbucket_pullrequests "$repo_host" "$repo_project" "$repo_name" "" "" "$skip_ssl_verification")
-PULL_REQUESTS=$(echo "${PRS}" | jq -r '.values[] | .id ' | xargs -L1 -I'{}' echo "refs/pull-requests/{}/from")
+cat << EOF > /tmp/pr
+$PRS
+EOF
+
+PULL_REQUESTS=$(cat /tmp/pr | jq -r '.[] | .id ' | tr '\n' '\0' | xargs -0 -n1 -I'{}' echo "refs/pull-requests/{}/from")
 
 # collect all pull requests from uri
 # REMOTES=$(git ls-remote "$uri")
@@ -71,15 +86,6 @@ PULL_REQUESTS=$(echo "${PRS}" | jq -r '.values[] | .id ' | xargs -L1 -I'{}' echo
 versions="[]"
 if [ -n "$PULL_REQUESTS" ]; then
   log "Calculating repository specifics"
-  # determine repository name for calling REST api
-  repo_name=$(basename "$uri" | sed "s/.git$//")
-  repo_project=$(basename $(dirname "$uri"))
-
-  # parse uri and retrieve host
-  uri_parser "$uri"
-  repo_host="${uri_schema}://${uri_address}"
-
-  repo_host=${repo_host}$(getBasePathOfBitbucket)
 
   versions="[]"
   while read pull_request ; do
@@ -107,15 +113,18 @@ if [ -n "$PULL_REQUESTS" ]; then
         prq_merge=$(bitbucket_pullrequest_merge "$repo_host" "$repo_project" "$repo_name" "$prq_number" "" "$skip_ssl_verification")
 
         if [ "$prq_merge" = "ALREADY_MERGED" ] || [ "$prq_merge" = "DECLINED" ]; then
+          log "merge status: $prq_merge"
           continue
         fi
 
         # verify if prq has merge conflicts
         conflicted=$(echo "$prq_merge" | jq -r '.conflicted')
+        log "is conflicted: $conflicted"
         if [ "$conflicted" == "true" -a "$only_without_conflicts" == "true" ]; then continue; fi
 
         # verify if prq is mergeable (e.g. enough approvals, tasks done, ...)
         mergeable=$(echo "$prq_merge" | jq -r '.canMerge')
+        log "is mergeable: $mergeable"
         if [ "$mergeable" == "false" -a "$only_when_mergeable" == "true" ]; then continue; fi
       fi
 
@@ -142,6 +151,7 @@ if [ -n "$PULL_REQUESTS" ]; then
       fi
 
       if [ "$PULL_REQUEST_DATE" -lt "$CURRENT_VERSION_DATE" ]; then
+        log "skipping due to: $PULL_REQUEST_DATE < $CURRENT_VERSION_DATE"
         continue
       fi
 
@@ -150,14 +160,19 @@ if [ -n "$PULL_REQUESTS" ]; then
         versions+=" + [{ id: \"$prq_number\", hash: \"$prq_hash\", date: \"$PULL_REQUEST_DATE\" }]"
       fi
     fi
+    log "$versions"
   done <<< "$PULL_REQUESTS"
 fi
 
 # On the first request return only the current version.
 if [ "$CURRENT_VERSION_DATE" -eq "0" ]; then
+  log "returning first item for first request"
   jq -n "$versions | sort_by((.date | tonumber), (.id | tonumber), .hash) | .[-1:]" > /tmp/check_result
 else
   jq -n "$versions | sort_by((.date | tonumber), (.id | tonumber), .hash)" > /tmp/check_result
 fi
 
 cat /tmp/check_result >&3
+if [ "$DEBUG_CHECK_PHASE" == "true" ]; then
+  exit 500
+fi

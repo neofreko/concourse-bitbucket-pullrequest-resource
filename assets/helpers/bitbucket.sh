@@ -94,8 +94,6 @@ bitbucket_request() {
     exit 1
   fi
 
-  # debug
-  log "Bitbucket request ($request_url) response: $(cat $request_result)"
   # cleanup
   request_result_cleanup
 }
@@ -106,7 +104,7 @@ bitbucket_pullrequests() {
   # $3: repository id
   # $5: netrc file (default: $HOME/.netrc)
   # $6: skip ssl verification
-  log "Retrieving pull request #$4 for $2/$3"
+  log "Retrieving pull requests for $2/$3"
   bitbucket_request "$1" "projects/$2/repos/$3/pull-requests" "" "" "" "$6" "$5"
 }
 
